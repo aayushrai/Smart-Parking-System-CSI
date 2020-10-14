@@ -2,10 +2,12 @@ import tkinter as tk
 import cv2
 import PIL
 import PIL.Image, PIL.ImageTk
-from keras.models import load_model
+from PIL import ImageOps,Image
+import tensorflow
+import numpy as np
 LARGE_FONT = ("Verdana", 12)
-model = load_model("aaas_v4.h5")
-
+# model = load_model("car_nocar_v1.h5")
+model = tensorflow.keras.models.load_model('keras_model.h5')
 class SeaofBTCapp(tk.Tk):
 
 
@@ -17,7 +19,7 @@ class SeaofBTCapp(tk.Tk):
 
         container.grid_rowconfigure(0, weight=1)
         container.grid_columnconfigure(0, weight=1)
-        self.state("zoomed")
+        # self.state("zoomed")
         self.frames = {}
 
         frame = StartPage(container, self)
@@ -46,8 +48,9 @@ class StartPage(tk.Frame):
         cam_frame = tk.Frame(self)
         self.canvas = tk.Canvas(cam_frame, width=500, height=500, bg="black", bd=2)
         self.canvas.pack(padx=100, pady=5)
-        self.vid = cv2.imread("s1\\p2.jpg")
-        self.photo = PIL.ImageTk.PhotoImage(image=PIL.Image.fromarray(cv2.resize(self.vid,(500,500))))
+        self.vid = cv2.imread("s1/p6.jpg")
+        flip_rotate_img = cv2.flip(cv2.rotate(cv2.resize(self.vid,(500,500)), cv2.ROTATE_90_CLOCKWISE),1)
+        self.photo = PIL.ImageTk.PhotoImage(image=PIL.Image.fromarray(flip_rotate_img))
         self.canvas.create_image(0, 0, image=self.photo, anchor=tk.NW)
         cam_frame.pack(side="left")
 
@@ -131,12 +134,22 @@ class StartPage(tk.Frame):
                       [587, 654, 1090, 1220], [651, 714, 1091, 1220]]
         img = self.vid
         counter = 1
+        data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
         for y1, y2, x1, x2 in roi_values:
             # img2 = cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 0), 2)
             # cv2.putText(img2, str(counter), (x1 + 30, y1 + 30), cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 0), 1)
-            slot = img[y1:y2,x1:x2]
-            pre = model.predict_classes(cv2.resize(slot, (32, 28)).reshape(1, 32, 28, 3))[0][0]
-            print(pre)
+            slot = img[y1:y2,x1:x2,:]
+            image= cv2.resize(slot, (224, 224))
+            # image = ImageOps.fit(slot,(224,224), Image.ANTIALIAS)
+            image_array = np.asarray(image)
+            normalized_image_array = (image_array.astype(np.float32) / 127.0) - 1
+            data[0] = normalized_image_array
+
+            prediction = model.predict(data)
+
+            # pre = model.predict_classes(cv2.resize(slot, (224, 224)).reshape(1, 224, 224, 3))[0][0]
+            print(prediction)
+            pre = np.argmax(prediction,axis=1)
             if pre == 0:
                 self.btn_dis[counter].config(bg="red")
             else:
